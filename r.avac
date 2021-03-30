@@ -12,13 +12,13 @@
 #				Public License (>=v2). Read the file COPYING that comes
 #				with GRASS for details.
 
-# VERSION:		3.1.3 20201016
+# VERSION:		3.1.4 20201228
 #				Currently supports levels 1 & 2 AMR calculations
 #				implements d0 modulation rule (based on SBG method)
 #				implements snow hypsometric gradient depth definition
 #				enhanced patching method, thus enabling dense grids processing
 #				corrected the crappy AddSetrun file creation procedure
-#			
+#
 ################################################################################
 
 
@@ -159,6 +159,10 @@
 #% description: run geoclaw 'make clobber'
 #%end
 
+#%flag
+#% key: a
+#% description: run r.avac in amnesiac mode (make sure -m flag is on)
+#%end
 #---------------------------------------------
 # Get environnment
 #---------------------------------------------
@@ -203,7 +207,11 @@ elif [ $GIS_FLAG_r -eq 1 -a "$ctrl" != "" ] ; then
 	if [ "$file" ] ; then
 		g.remove -f type=rast name="$GIS_OPT_simul""_p_max"
 	fi
-	
+fi
+
+if [ $GIS_FLAG_a -eq 1 -a $GIS_FLAG_m -eq 0 ] ; then
+	g.message -w "amnesiac mode: -a flag without -m flag is useless!"
+	exit 1
 fi
 
 eval `g.findfile element=cell file="$GIS_OPT_dem"`
@@ -343,7 +351,7 @@ Cleanup()
 	#----
 	r.mask -r 2>/dev/null
 	g.message -w "Warning ! r.avac removes any MASK previously set"
-	g.remove -f type=rast name=$rinitial0,$masque,$topoclip,$penteclip,$rinitial1 --quiet
+	g.remove -f type=rast name=$rinitial0,$masque,$topoclip,$penteclip,$rinitial1 2>/dev/null
 }
 
 Cleanexit()
@@ -370,7 +378,7 @@ cd "$GIS_MAP_PATH/.tmp/avac"
 
 #---------------------------------------------
 # import avac primitive files
-#---------------------------------------------	
+#---------------------------------------------
 cp $CLAW/geoclaw/examples/avac/* .
 
 
@@ -391,7 +399,7 @@ g.message -w "Warning ! r.avac removes any MASK previously set"
 
 #---------------------------------------------
 # feed voellmy.data
-#---------------------------------------------	
+#---------------------------------------------
 echo "# voellmy parameters set by r.avac ">voellmy.data
 echo \ >>voellmy.data
 echo "$GIS_OPT_RHO =: snow_density ">>voellmy.data
@@ -405,7 +413,7 @@ echo \ >>voellmy.data
 
 #---------------------------------------------
 # feed AddSetrun.py...
-#---------------------------------------------	
+#---------------------------------------------
 
 	#----
 	# duration and extent
@@ -419,7 +427,7 @@ echo "ymax = $n">>AddSetrun.py
 echo "nx = $cols">>AddSetrun.py
 echo "ny = $rows">>AddSetrun.py
 echo "nsim = $iter">>AddSetrun.py
-echo "dt_init = 0.01">>AddSetrun.py
+echo "dt_init = 0.02">>AddSetrun.py
 echo "tmax = $duration">>AddSetrun.py
 echo "cfl_desired = 0.5">>AddSetrun.py
 echo "nb_max_iter = 10000">>AddSetrun.py
@@ -431,12 +439,12 @@ echo "DryWetLimit = 0.01">>AddSetrun.py
 	#----
 	# AMR settings
 	#----
-	
+
 echo "refinement = $amr_level">>AddSetrun.py
 
 if [ "$GIS_OPT_amr" ] ; then
 	eval `v.info -g ${GIS_OPT_amr}`
-	
+
 	echo "amrxmin = $west">>AddSetrun.py
 	echo "amrxmax = $east">>AddSetrun.py
 	echo "amrymin = $south">>AddSetrun.py
@@ -478,7 +486,7 @@ r.mask rast=$rinitial0 --o
 
 # apply SBG d0 rule
 rinitial1="avacrinit1_$$"
-theta=30
+theta=30.0
 nu=0.2
 
 
@@ -489,7 +497,9 @@ if [ "$autodepth" -eq 0 ] ; then
 	r.mapcalc expression="$rinitial1=if($penteclip < 25,$rinitial0 * cos($theta) * (sin($theta) - $nu * cos($theta)) / (sin(25) - $nu * cos(25)),$rinitial0 * cos($theta) * (sin($theta) - $nu * cos($theta)) / (sin($penteclip) - $nu * cos($penteclip)))"
 else
 	# feeding initial depth from $GIS_OPT_grad values (SBG d0 method), then apply slope correction
-	r.mapcalc expression="$rinitial1=if($penteclip < 25,( $d0h + ( $topoclip - $d0alt ) * $d0grad / 100 ) * cos($theta) * (sin($theta) - $nu * cos($theta)) / (sin(25) - $nu * cos(25)),( $d0h + ( $topoclip - $d0alt ) * $d0grad / 100 ) *  cos($theta) * (sin($theta) - $nu * cos($theta)) / (sin($penteclip) - $nu * cos($penteclip)))"
+	#r.mapcalc expression="$rinitial1=if($penteclip < 25,( $d0h + ( $topoclip - $d0alt ) * $d0grad / 100 ) * cos($theta) * (sin($theta) - $nu * cos($theta)) / (sin(25) - $nu * cos(25)),( $d0h + ( $topoclip - $d0alt ) * $d0grad / 100 ) *  cos($theta) * (sin($theta) - $nu * cos($theta)) / (sin($penteclip) - $nu * cos($penteclip)))"
+	r.mapcalc expression="$rinitial1=if($penteclip < 25,( $d0h + ( $topoclip - $d0alt ) * $d0grad / 100 )  * (sin($theta) - $nu * cos($theta)) / (sin(25) - $nu * cos(25)),( $d0h + ( $topoclip - $d0alt ) * $d0grad / 100 ) * (sin($theta) - $nu * cos($theta)) / (sin($penteclip) - $nu * cos($penteclip)))"
+
 fi
 
 r.mask -r
@@ -559,7 +569,7 @@ parallel gridasc_p {} {.} $GIS_OPT_rho :::: listsplit
 
 
 #---------------------------------------------
-# importing h and p raster maps 
+# importing h and p raster maps
 #---------------------------------------------
 
 
@@ -621,26 +631,36 @@ t.rast.colors --q input="$GIS_OPT_simul"_p color=reds
 # t.rast.colors --q input="$GIS_OPT_simul"_p rules=~/pression_ca.file
 
 #---------------------------------------------
-# Testing m flag 
+# Testing m flag
 #---------------------------------------------
 if [ "$GIS_FLAG_m" -eq 1 ] ; then
 	# compute max(h)
 	output="$GIS_OPT_simul"_h_max
-	t.rast.series --overwrite input="$GIS_OPT_simul"_h method=maximum where="start_time>0" output=$output
+	t.rast.series --overwrite input="$GIS_OPT_simul"_h method=maximum where="start_time>=0" output=$output
+	g.message "max(h) raster map saved to $output"
 	r.colors map=$output color=blues
 	# r.colors map=$output rules=~/hauteur_ca.file
-	g.message "max(h) raster map saved to $output"
-	
+	r.support map=$output history="r.avac run with mu=$GIS_OPT_MU, xi=$GIS_OPT_XI, rho=$GIS_OPT_RHO, grad=$GIS_OPT_GRAD"
+
 	# compute max(p)
 	output="$GIS_OPT_simul"_p_max
-	t.rast.series --overwrite input="$GIS_OPT_simul"_p method=maximum where="start_time>0" output=$output
+	t.rast.series --overwrite input="$GIS_OPT_simul"_p method=maximum where="start_time>=0" output=$output
+	g.message "max(p) raster map saved to $output"
 	r.colors map=$output color=reds
 	# r.colors map=$output rules=~/pression_ca.file
-	g.message "max(p) raster map saved to $output"
+	r.support map=$output history="r.avac run with mu=$GIS_OPT_MU, xi=$GIS_OPT_XI, rho=$GIS_OPT_RHO, grad=$GIS_OPT_GRAD"
 fi
 
+#---------------------------------------------
+# Testing a flag
+#---------------------------------------------
+if [ "$GIS_FLAG_a" -eq 1 ] ; then
+	# purge time series, just keep max(h) and max(p) raster maps
+	t.remove -rf inputs="$GIS_OPT_simul"_h
+	t.remove -rf inputs="$GIS_OPT_simul"_p
+fi
 
-#---------------------------------------------	
+#---------------------------------------------
 # regular exit
 #---------------------------------------------
 g.region region=$regionbackup

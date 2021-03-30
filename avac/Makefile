@@ -23,7 +23,7 @@ PLOTDIR = _plots               # Directory for plots
 
 # Compiler flags can be specified here or set as an environment variable
 FFLAGS ?=-O2 -fopenmp
-OMP_NUM_THREADS=8
+OMP_NUM_THREADS=16
 
 
 # ---------------------------------

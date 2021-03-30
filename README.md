@@ -43,4 +43,4 @@ Christophe Ancey, EPFL, Switzerland
 
 Vincent Bain, Toraval, France
 
-version 3.1.3 October 2020
+version 3.1.4 December 2020
