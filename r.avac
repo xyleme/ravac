@@ -12,12 +12,13 @@
 #				Public License (>=v2). Read the file COPYING that comes
 #				with GRASS for details.
 
-# VERSION:		3.1.4 20201228
+# VERSION:		3.1.5 20210721
 #				Currently supports levels 1 & 2 AMR calculations
 #				implements d0 modulation rule (based on SBG method)
 #				implements snow hypsometric gradient depth definition
 #				enhanced patching method, thus enabling dense grids processing
 #				corrected the crappy AddSetrun file creation procedure
+#				changed dt default value to 1 (prev. 20)
 #
 ################################################################################
 
@@ -70,7 +71,7 @@
 #% required: no
 #% label: time increment
 #% description: time series frame period in seconds
-#% answer: 20
+#% answer: 1
 #%End
 
 #%Option
@@ -625,10 +626,10 @@ fi
 #---------------------------------------------
 # Tweaking color tables
 #---------------------------------------------
-t.rast.colors --q input="$GIS_OPT_simul"_h color=blues
-t.rast.colors --q input="$GIS_OPT_simul"_p color=reds
-# t.rast.colors --q input="$GIS_OPT_simul"_h rules=~/hauteur_ca.file
-# t.rast.colors --q input="$GIS_OPT_simul"_p rules=~/pression_ca.file
+# t.rast.colors --q input="$GIS_OPT_simul"_h color=blues
+# t.rast.colors --q input="$GIS_OPT_simul"_p color=reds
+t.rast.colors --q input="$GIS_OPT_simul"_h rules=~/h_toraval.file
+t.rast.colors --q input="$GIS_OPT_simul"_p rules=~/p_toraval.file
 
 #---------------------------------------------
 # Testing m flag
@@ -638,16 +639,16 @@ if [ "$GIS_FLAG_m" -eq 1 ] ; then
 	output="$GIS_OPT_simul"_h_max
 	t.rast.series --overwrite input="$GIS_OPT_simul"_h method=maximum where="start_time>=0" output=$output
 	g.message "max(h) raster map saved to $output"
-	r.colors map=$output color=blues
-	# r.colors map=$output rules=~/hauteur_ca.file
+	# r.colors map=$output color=blues
+	r.colors map=$output rules=~/h_toraval.file
 	r.support map=$output history="r.avac run with mu=$GIS_OPT_MU, xi=$GIS_OPT_XI, rho=$GIS_OPT_RHO, grad=$GIS_OPT_GRAD"
 
 	# compute max(p)
 	output="$GIS_OPT_simul"_p_max
 	t.rast.series --overwrite input="$GIS_OPT_simul"_p method=maximum where="start_time>=0" output=$output
 	g.message "max(p) raster map saved to $output"
-	r.colors map=$output color=reds
-	# r.colors map=$output rules=~/pression_ca.file
+	# r.colors map=$output color=reds
+	r.colors map=$output rules=~/p_toraval.file
 	r.support map=$output history="r.avac run with mu=$GIS_OPT_MU, xi=$GIS_OPT_XI, rho=$GIS_OPT_RHO, grad=$GIS_OPT_GRAD"
 fi
 

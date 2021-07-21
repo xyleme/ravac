@@ -36,6 +36,7 @@ GRASS addon:
 Application data:
 - boussolenc.gpkg: a GeoPackage containing a set of geographic data
 - p_toraval.file: Toraval color chart for pressure maps display
+- h_toraval.file: Toraval color chart for height maps display
 
 ***************
 
